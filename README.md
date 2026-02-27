@@ -5,8 +5,36 @@ A Python CLI tool for analyzing discourse in text documents using Ollama and ope
 ## Prerequisites
 
 - **Python 3.9+**
-- **Ollama** installed and running locally ([install instructions](https://ollama.com/download))
-- A pulled Ollama model (e.g. `ollama pull mistral`)
+
+### Installing Ollama
+
+On macOS:
+
+```bash
+brew install ollama
+```
+
+On Linux:
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+On Windows, download the installer from https://ollama.com/download.
+
+Start the Ollama server (runs in the background):
+
+```bash
+ollama serve
+```
+
+Then pull a model to use as the base for evaluations:
+
+```bash
+ollama pull mistral
+```
+
+Other models work too (e.g. `llama3`, `gemma2`) — pass the name via `--model` when running commands.
 
 ## Setup
 
