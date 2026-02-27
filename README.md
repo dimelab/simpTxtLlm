@@ -80,7 +80,7 @@ Split documents into semantically coherent paragraphs using sentence embeddings.
 **From individual files** (PDF, DOCX, TXT):
 
 ```bash
-python discourse_tool/cli.py segment \
+python cli.py segment \
   --input paper.pdf \
   --output data/segments/ \
   --threshold 0.3
@@ -89,7 +89,7 @@ python discourse_tool/cli.py segment \
 **From a CSV file** with article identifier and content columns:
 
 ```bash
-python discourse_tool/cli.py segment \
+python cli.py segment \
   --input articles.csv \
   --id-column article_id \
   --text-column content \
@@ -111,7 +111,7 @@ Output: JSON file in the format `{"article_id": ["paragraph 1", "paragraph 2", .
 Run each paragraph through an Ollama model with your system prompt and user template.
 
 ```bash
-python discourse_tool/cli.py evaluate \
+python cli.py evaluate \
   --segments data/segments/paper.json \
   --system-prompt prompts/system.txt \
   --user-template prompts/template.txt \
@@ -135,7 +135,7 @@ Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_inde
 Interactively review model outputs and provide corrections.
 
 ```bash
-python discourse_tool/cli.py review \
+python cli.py review \
   --evaluations data/evaluations/paper.parquet
 ```
 
@@ -151,7 +151,7 @@ Use human corrections to improve model performance.
 **Few-shot mode** (default) — injects human-corrected examples into an enriched system prompt and creates a new Ollama model:
 
 ```bash
-python discourse_tool/cli.py finetune \
+python cli.py finetune \
   --human-labels data/training/human_evaluations.parquet \
   --mode few-shot \
   --system-prompt prompts/system.txt \
@@ -162,7 +162,7 @@ python discourse_tool/cli.py finetune \
 **Full mode** — exports training data as JSONL and generates an axolotl config for external fine-tuning:
 
 ```bash
-python discourse_tool/cli.py finetune \
+python cli.py finetune \
   --human-labels data/training/human_evaluations.parquet \
   --mode full \
   --system-prompt prompts/system.txt \
@@ -175,12 +175,13 @@ After full fine-tuning, you import the resulting GGUF weights back into Ollama.
 ## Project Structure
 
 ```
+cli.py                  # Top-level entrypoint (run this)
 discourse_tool/
-├── config.py       # Shared configuration (paths, model defaults, thresholds)
-├── segment.py      # Document parsing and semantic splitting
-├── evaluate.py     # Ollama model creation and evaluation loop
-├── finetune.py     # Human review CLI and fine-tuning data export
-├── cli.py          # Typer CLI entrypoint
+├── config.py           # Shared configuration (paths, model defaults, thresholds)
+├── segment.py          # Document parsing and semantic splitting
+├── evaluate.py         # Ollama model creation and evaluation loop
+├── finetune.py         # Human review CLI and fine-tuning data export
+├── cli.py              # Typer app definition
 data/
 ├── segments/       # JSON output from segmentation
 ├── evaluations/    # Parquet + CSV evaluation results
