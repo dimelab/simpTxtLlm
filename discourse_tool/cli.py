@@ -13,6 +13,7 @@ def segment(
     threshold: float = typer.Option(0.3, "--threshold", "-t", help="Cosine similarity threshold for splitting"),
     id_column: Optional[str] = typer.Option(None, "--id-column", help="CSV column name for article identifier"),
     text_column: Optional[str] = typer.Option(None, "--text-column", help="CSV column name for article content"),
+    n_files: Optional[int] = typer.Option(None, "--n-files", "-n", help="Only process the first N files/rows (for testing)"),
 ) -> None:
     """Segment documents into semantically coherent paragraphs.
 
@@ -24,11 +25,11 @@ def segment(
 
         if not id_column or not text_column:
             raise typer.BadParameter("CSV input requires --id-column and --text-column")
-        segment_csv(input, id_column, text_column, output, threshold)
+        segment_csv(input, id_column, text_column, output, threshold, n_files)
     else:
         from .segment import segment_files
 
-        segment_files(input, output, threshold)
+        segment_files(input, output, threshold, n_files)
 
 
 @app.command()
@@ -38,11 +39,12 @@ def evaluate(
     user_template: Path = typer.Option(..., "--user-template", help="Path to user template text file with {text} placeholder"),
     model: str = typer.Option("mistral", "--model", "-m", help="Base Ollama model name"),
     output: Path = typer.Option("data/evaluations", "--output", "-o", help="Output directory for evaluation results"),
+    n_segments: Optional[int] = typer.Option(None, "--n-segments", "-n", help="Only evaluate the first N segments (for testing)"),
 ) -> None:
     """Evaluate segmented paragraphs using an Ollama model."""
     from .evaluate import evaluate_segments
 
-    evaluate_segments(segments, system_prompt, user_template, model, output)
+    evaluate_segments(segments, system_prompt, user_template, model, output, n_segments)
 
 
 @app.command()

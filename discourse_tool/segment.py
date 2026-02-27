@@ -70,6 +70,7 @@ def segment_csv(
     text_column: str,
     output_dir: Path,
     threshold: float = None,
+    n_files: int = None,
 ) -> None:
     """Segment articles from a CSV file.
 
@@ -90,6 +91,9 @@ def segment_csv(
     if text_column not in df.columns:
         raise ValueError(f"Column '{text_column}' not found in CSV. Available: {df.columns}")
 
+    if n_files is not None:
+        df = df.head(n_files)
+
     results = {}
     for row in tqdm(df.iter_rows(named=True), total=len(df), desc="Segmenting articles"):
         article_id = str(row[id_column])
@@ -105,7 +109,7 @@ def segment_csv(
     print(f"\n{len(results)} articles segmented -> {out_file}")
 
 
-def segment_files(input_path: Path, output_dir: Path, threshold: float = None) -> None:
+def segment_files(input_path: Path, output_dir: Path, threshold: float = None, n_files: int = None) -> None:
     """Segment individual document files (PDF, DOCX, TXT)."""
     cfg = Config()
     if threshold is None:
@@ -119,6 +123,9 @@ def segment_files(input_path: Path, output_dir: Path, threshold: float = None) -
         files = [f for f in input_path.iterdir() if f.suffix.lower() in (".pdf", ".docx", ".txt")]
     else:
         files = [input_path]
+
+    if n_files is not None:
+        files = files[:n_files]
 
     for file_path in tqdm(files, desc="Segmenting files"):
         text = read_file(file_path)

@@ -37,6 +37,7 @@ def evaluate_segments(
     user_template_path: Path,
     base_model: str = None,
     output_dir: Path = None,
+    n_segments: int = None,
 ) -> None:
     cfg = Config()
     if base_model is None:
@@ -57,28 +58,32 @@ def evaluate_segments(
     create_modelfile(base_model, system_prompt, modelfile_path)
     create_ollama_model(custom_model_name, modelfile_path)
 
+    # Flatten all paragraphs into a list for easy slicing
+    all_paragraphs = [
+        (source_file, i, text)
+        for source_file, paragraphs in segments.items()
+        for i, text in enumerate(paragraphs)
+    ]
+    if n_segments is not None:
+        all_paragraphs = all_paragraphs[:n_segments]
+
     # Evaluate each paragraph
-    total = sum(len(paras) for paras in segments.values())
     rows = []
-    with tqdm(total=total, desc="Evaluating paragraphs") as pbar:
-        for source_file, paragraphs in segments.items():
-            for i, text in enumerate(paragraphs):
-                user_message = user_template.replace("{text}", text)
+    for source_file, i, text in tqdm(all_paragraphs, desc="Evaluating paragraphs"):
+        user_message = user_template.replace("{text}", text)
 
-                response = ollama.chat(
-                    model=custom_model_name,
-                    messages=[{"role": "user", "content": user_message}],
-                )
-                evaluation = response["message"]["content"]
+        response = ollama.chat(
+            model=custom_model_name,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        evaluation = response["message"]["content"]
 
-                rows.append({
-                    "source_file": source_file,
-                    "paragraph_index": i,
-                    "text": text,
-                    "model_evaluation": evaluation,
-                })
-                pbar.set_postfix(file=source_file)
-                pbar.update(1)
+        rows.append({
+            "source_file": source_file,
+            "paragraph_index": i,
+            "text": text,
+            "model_evaluation": evaluation,
+        })
 
     # Save results
     df = pl.DataFrame(rows)
