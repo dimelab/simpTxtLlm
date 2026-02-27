@@ -4,8 +4,10 @@ from pathlib import Path
 import fitz  # pymupdf
 import nltk
 import numpy as np
+import polars as pl
 from docx import Document
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 from .config import Config
 
@@ -52,20 +54,65 @@ def semantic_split(text: str, model: SentenceTransformer, threshold: float) -> l
     return paragraphs
 
 
-def segment_files(input_path: Path, output_dir: Path, threshold: float = None) -> None:
+def _init_model_and_nltk() -> SentenceTransformer:
+    """Load sentence-transformers model and ensure NLTK data is available."""
+    cfg = Config()
+    try:
+        nltk.data.find("tokenizers/punkt_tab")
+    except LookupError:
+        nltk.download("punkt_tab", quiet=True)
+    return SentenceTransformer(cfg.embedding_model)
+
+
+def segment_csv(
+    csv_path: Path,
+    id_column: str,
+    text_column: str,
+    output_dir: Path,
+    threshold: float = None,
+) -> None:
+    """Segment articles from a CSV file.
+
+    Reads a CSV with an identifier column and a text column, segments each
+    article, and writes a single JSON output file.
+    """
     cfg = Config()
     if threshold is None:
         threshold = cfg.similarity_threshold
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    model = _init_model_and_nltk()
 
-    # Download punkt tokenizer data if needed
-    try:
-        nltk.data.find("tokenizers/punkt_tab")
-    except LookupError:
-        nltk.download("punkt_tab", quiet=True)
+    df = pl.read_csv(csv_path)
 
-    model = SentenceTransformer(cfg.embedding_model)
+    if id_column not in df.columns:
+        raise ValueError(f"Column '{id_column}' not found in CSV. Available: {df.columns}")
+    if text_column not in df.columns:
+        raise ValueError(f"Column '{text_column}' not found in CSV. Available: {df.columns}")
+
+    results = {}
+    for row in tqdm(df.iter_rows(named=True), total=len(df), desc="Segmenting articles"):
+        article_id = str(row[id_column])
+        text = str(row[text_column])
+        if not text.strip():
+            results[article_id] = []
+            continue
+        paragraphs = semantic_split(text, model, threshold)
+        results[article_id] = paragraphs
+
+    out_file = output_dir / f"{csv_path.stem}.json"
+    out_file.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"\n{len(results)} articles segmented -> {out_file}")
+
+
+def segment_files(input_path: Path, output_dir: Path, threshold: float = None) -> None:
+    """Segment individual document files (PDF, DOCX, TXT)."""
+    cfg = Config()
+    if threshold is None:
+        threshold = cfg.similarity_threshold
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    model = _init_model_and_nltk()
 
     # Handle single file or directory
     if input_path.is_dir():
@@ -73,11 +120,11 @@ def segment_files(input_path: Path, output_dir: Path, threshold: float = None) -
     else:
         files = [input_path]
 
-    for file_path in files:
-        print(f"Segmenting: {file_path.name}")
+    for file_path in tqdm(files, desc="Segmenting files"):
         text = read_file(file_path)
         paragraphs = semantic_split(text, model, threshold)
         output = {file_path.name: paragraphs}
         out_file = output_dir / f"{file_path.stem}.json"
         out_file.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"  -> {len(paragraphs)} segments written to {out_file}")
+
+    print(f"\n{len(files)} files segmented -> {output_dir}")

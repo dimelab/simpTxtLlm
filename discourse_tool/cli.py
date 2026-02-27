@@ -8,14 +8,27 @@ app = typer.Typer(help="Discourse analysis tool using Ollama and open-source LLM
 
 @app.command()
 def segment(
-    input: Path = typer.Option(..., "--input", "-i", help="Input file or directory (PDF, DOCX, TXT)"),
+    input: Path = typer.Option(..., "--input", "-i", help="Input file, directory (PDF/DOCX/TXT), or CSV file"),
     output: Path = typer.Option("data/segments", "--output", "-o", help="Output directory for segment JSON files"),
     threshold: float = typer.Option(0.3, "--threshold", "-t", help="Cosine similarity threshold for splitting"),
+    id_column: Optional[str] = typer.Option(None, "--id-column", help="CSV column name for article identifier"),
+    text_column: Optional[str] = typer.Option(None, "--text-column", help="CSV column name for article content"),
 ) -> None:
-    """Segment documents into semantically coherent paragraphs."""
-    from .segment import segment_files
+    """Segment documents into semantically coherent paragraphs.
 
-    segment_files(input, output, threshold)
+    For CSV input, provide --id-column and --text-column to specify which
+    columns contain the article identifier and text content.
+    """
+    if input.suffix.lower() == ".csv":
+        from .segment import segment_csv
+
+        if not id_column or not text_column:
+            raise typer.BadParameter("CSV input requires --id-column and --text-column")
+        segment_csv(input, id_column, text_column, output, threshold)
+    else:
+        from .segment import segment_files
+
+        segment_files(input, output, threshold)
 
 
 @app.command()

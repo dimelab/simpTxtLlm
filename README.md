@@ -75,7 +75,9 @@ The tool follows a four-step pipeline:
 
 ### 1. Segment documents
 
-Split PDF, DOCX, or TXT files into semantically coherent paragraphs using sentence embeddings.
+Split documents into semantically coherent paragraphs using sentence embeddings.
+
+**From individual files** (PDF, DOCX, TXT):
 
 ```bash
 python discourse_tool/cli.py segment \
@@ -84,11 +86,24 @@ python discourse_tool/cli.py segment \
   --threshold 0.3
 ```
 
-- `--input` / `-i`: A single file or a directory of files (PDF, DOCX, TXT)
+**From a CSV file** with article identifier and content columns:
+
+```bash
+python discourse_tool/cli.py segment \
+  --input articles.csv \
+  --id-column article_id \
+  --text-column content \
+  --output data/segments/ \
+  --threshold 0.3
+```
+
+- `--input` / `-i`: A single file, directory of files (PDF/DOCX/TXT), or a CSV file
 - `--output` / `-o`: Output directory for JSON segment files (default: `data/segments/`)
 - `--threshold` / `-t`: Cosine similarity threshold — lower values produce more splits (default: 0.3)
+- `--id-column`: (CSV only) Column name for the article identifier
+- `--text-column`: (CSV only) Column name for the article text content
 
-Output: one JSON file per input document in the format `{"filename.pdf": ["paragraph 1", "paragraph 2", ...]}`.
+Output: JSON file in the format `{"article_id": ["paragraph 1", "paragraph 2", ...]}`.
 
 ### 2. Evaluate segments
 
@@ -108,6 +123,8 @@ python discourse_tool/cli.py evaluate \
 - `--user-template`: Path to your user template text file (must contain `{text}`)
 - `--model` / `-m`: Ollama base model name (default: `mistral`)
 - `--output` / `-o`: Output directory (default: `data/evaluations/`)
+
+A progress bar shows how many paragraphs have been evaluated across all source files.
 
 Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_index`, `text`, `model_evaluation`.
 
