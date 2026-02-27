@@ -1,0 +1,141 @@
+# Discourse Analysis Tool
+
+A Python CLI tool for analyzing discourse in text documents using Ollama and open-source LLMs. It segments documents into semantically coherent paragraphs, evaluates them against a user-defined theoretical framework, and supports iterative improvement through human feedback.
+
+## Prerequisites
+
+- **Python 3.9+**
+- **Ollama** installed and running locally ([install instructions](https://ollama.com/download))
+- A pulled Ollama model (e.g. `ollama pull mistral`)
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+```
+
+On first run of the `segment` command, the sentence-transformers model (`all-MiniLM-L6-v2`) and NLTK tokenizer data will be downloaded automatically.
+
+## Preparing Your Prompt Files
+
+Before running evaluations, create two text files:
+
+### System prompt
+
+A text file containing the theoretical framing for your analysis. This becomes the model's system instruction. For example (`prompts/system.txt`):
+
+```
+You are a discourse analyst trained in Foucauldian discourse analysis.
+Analyze texts for power relations, subject positions, and discursive
+formations. Identify how knowledge claims are constructed and legitimized.
+```
+
+### User template
+
+A text file containing the per-paragraph evaluation instruction. Use `{text}` as the placeholder where the paragraph text will be inserted. For example (`prompts/template.txt`):
+
+```
+Analyze the following paragraph for discursive strategies, identifying
+key rhetorical moves, subject positions, and power dynamics:
+
+{text}
+```
+
+## Workflow
+
+The tool follows a four-step pipeline:
+
+### 1. Segment documents
+
+Split PDF, DOCX, or TXT files into semantically coherent paragraphs using sentence embeddings.
+
+```bash
+python discourse_tool/cli.py segment \
+  --input paper.pdf \
+  --output data/segments/ \
+  --threshold 0.3
+```
+
+- `--input` / `-i`: A single file or a directory of files (PDF, DOCX, TXT)
+- `--output` / `-o`: Output directory for JSON segment files (default: `data/segments/`)
+- `--threshold` / `-t`: Cosine similarity threshold — lower values produce more splits (default: 0.3)
+
+Output: one JSON file per input document in the format `{"filename.pdf": ["paragraph 1", "paragraph 2", ...]}`.
+
+### 2. Evaluate segments
+
+Run each paragraph through an Ollama model with your system prompt and user template.
+
+```bash
+python discourse_tool/cli.py evaluate \
+  --segments data/segments/paper.json \
+  --system-prompt prompts/system.txt \
+  --user-template prompts/template.txt \
+  --model mistral \
+  --output data/evaluations/
+```
+
+- `--segments` / `-s`: Path to a segments JSON file from step 1
+- `--system-prompt`: Path to your system prompt text file
+- `--user-template`: Path to your user template text file (must contain `{text}`)
+- `--model` / `-m`: Ollama base model name (default: `mistral`)
+- `--output` / `-o`: Output directory (default: `data/evaluations/`)
+
+Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_index`, `text`, `model_evaluation`.
+
+### 3. Review evaluations
+
+Interactively review model outputs and provide corrections.
+
+```bash
+python discourse_tool/cli.py review \
+  --evaluations data/evaluations/paper.parquet
+```
+
+- `--evaluations` / `-e`: Path to the evaluation parquet file from step 2
+- `--output` / `-o`: Output path for corrected data (default: `data/training/human_evaluations.parquet`)
+
+For each paragraph, you'll see the text and the model's evaluation. Press Enter to accept, or type a corrected evaluation.
+
+### 4. Fine-tune
+
+Use human corrections to improve model performance.
+
+**Few-shot mode** (default) — injects human-corrected examples into an enriched system prompt and creates a new Ollama model:
+
+```bash
+python discourse_tool/cli.py finetune \
+  --human-labels data/training/human_evaluations.parquet \
+  --mode few-shot \
+  --system-prompt prompts/system.txt \
+  --user-template prompts/template.txt \
+  --model mistral
+```
+
+**Full mode** — exports training data as JSONL and generates an axolotl config for external fine-tuning:
+
+```bash
+python discourse_tool/cli.py finetune \
+  --human-labels data/training/human_evaluations.parquet \
+  --mode full \
+  --system-prompt prompts/system.txt \
+  --user-template prompts/template.txt \
+  --output data/training/
+```
+
+After full fine-tuning, you import the resulting GGUF weights back into Ollama.
+
+## Project Structure
+
+```
+discourse_tool/
+├── config.py       # Shared configuration (paths, model defaults, thresholds)
+├── segment.py      # Document parsing and semantic splitting
+├── evaluate.py     # Ollama model creation and evaluation loop
+├── finetune.py     # Human review CLI and fine-tuning data export
+├── cli.py          # Typer CLI entrypoint
+data/
+├── segments/       # JSON output from segmentation
+├── evaluations/    # Parquet + CSV evaluation results
+└── training/       # Human-labeled data and fine-tuning artifacts
+```
