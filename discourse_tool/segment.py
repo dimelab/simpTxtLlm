@@ -54,14 +54,15 @@ def semantic_split(text: str, model: SentenceTransformer, threshold: float) -> l
     return paragraphs
 
 
-def _init_model_and_nltk() -> SentenceTransformer:
+def _init_model_and_nltk(embedding_model: str = None) -> SentenceTransformer:
     """Load sentence-transformers model and ensure NLTK data is available."""
-    cfg = Config()
+    if embedding_model is None:
+        embedding_model = Config().embedding_model
     try:
         nltk.data.find("tokenizers/punkt_tab")
     except LookupError:
         nltk.download("punkt_tab", quiet=True)
-    return SentenceTransformer(cfg.embedding_model)
+    return SentenceTransformer(embedding_model)
 
 
 def segment_csv(
@@ -71,6 +72,7 @@ def segment_csv(
     output_dir: Path,
     threshold: float = None,
     n_files: int = None,
+    embedding_model: str = None,
 ) -> None:
     """Segment articles from a CSV file.
 
@@ -82,7 +84,7 @@ def segment_csv(
         threshold = cfg.similarity_threshold
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    model = _init_model_and_nltk()
+    model = _init_model_and_nltk(embedding_model)
 
     df = pl.read_csv(csv_path)
 
@@ -109,14 +111,14 @@ def segment_csv(
     print(f"\n{len(results)} articles segmented -> {out_file}")
 
 
-def segment_files(input_path: Path, output_dir: Path, threshold: float = None, n_files: int = None) -> None:
+def segment_files(input_path: Path, output_dir: Path, threshold: float = None, n_files: int = None, embedding_model: str = None) -> None:
     """Segment individual document files (PDF, DOCX, TXT)."""
     cfg = Config()
     if threshold is None:
         threshold = cfg.similarity_threshold
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    model = _init_model_and_nltk()
+    model = _init_model_and_nltk(embedding_model)
 
     # Handle single file or directory
     if input_path.is_dir():

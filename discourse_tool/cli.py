@@ -14,6 +14,7 @@ def segment(
     id_column: Optional[str] = typer.Option(None, "--id-column", help="CSV column name for article identifier"),
     text_column: Optional[str] = typer.Option(None, "--text-column", help="CSV column name for article content"),
     n_files: Optional[int] = typer.Option(None, "--n-files", "-n", help="Only process the first N files/rows (for testing)"),
+    embedding_model: Optional[str] = typer.Option(None, "--embedding-model", help="Sentence-transformers model for embeddings (default: all-MiniLM-L6-v2)"),
 ) -> None:
     """Segment documents into semantically coherent paragraphs.
 
@@ -25,11 +26,11 @@ def segment(
 
         if not id_column or not text_column:
             raise typer.BadParameter("CSV input requires --id-column and --text-column")
-        segment_csv(input, id_column, text_column, output, threshold, n_files)
+        segment_csv(input, id_column, text_column, output, threshold, n_files, embedding_model)
     else:
         from .segment import segment_files
 
-        segment_files(input, output, threshold, n_files)
+        segment_files(input, output, threshold, n_files, embedding_model)
 
 
 @app.command()

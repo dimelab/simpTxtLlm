@@ -28,13 +28,7 @@ Start the Ollama server (runs in the background):
 ollama serve
 ```
 
-Then pull a model to use as the base for evaluations:
-
-```bash
-ollama pull mistral
-```
-
-Other models work too (e.g. `llama3`, `gemma2`) — pass the name via `--model` when running commands.
+The base model (e.g. `mistral`, `llama3`, `gemma2`) is downloaded automatically when you first run the `evaluate` command. Pass the name via `--model`.
 
 ## Setup
 
@@ -103,6 +97,7 @@ python cli.py segment \
 - `--id-column`: (CSV only) Column name for the article identifier
 - `--text-column`: (CSV only) Column name for the article text content
 - `--n-files` / `-n`: Only process the first N files/rows, for testing on smaller samples
+- `--embedding-model`: Sentence-transformers model for computing embeddings (default: `all-MiniLM-L6-v2`). Other options include `all-mpnet-base-v2` (higher quality, slower) or `paraphrase-multilingual-MiniLM-L12-v2` (multilingual)
 
 Output: JSON file in the format `{"article_id": ["paragraph 1", "paragraph 2", ...]}`.
 
