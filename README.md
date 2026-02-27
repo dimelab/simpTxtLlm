@@ -97,7 +97,16 @@ python cli.py segment \
 - `--id-column`: (CSV only) Column name for the article identifier
 - `--text-column`: (CSV only) Column name for the article text content
 - `--n-files` / `-n`: Only process the first N files/rows, for testing on smaller samples
-- `--embedding-model`: Sentence-transformers model for computing embeddings (default: `all-MiniLM-L6-v2`). Other options include `all-mpnet-base-v2` (higher quality, slower) or `paraphrase-multilingual-MiniLM-L12-v2` (multilingual)
+- `--embedding-model`: Sentence-transformers model for computing embeddings (default: `all-MiniLM-L6-v2`)
+
+**Recommended embedding models for Danish text** (per the [Scandinavian Embedding Benchmark](https://huggingface.co/collections/danish-foundation-models/state-of-the-art-danish-models)):
+
+| Model | Size | Notes |
+|-------|------|-------|
+| `intfloat/multilingual-e5-large` | 0.6B | Best quality, no instructions needed |
+| `intfloat/multilingual-e5-base` | 0.3B | Good balance of quality and speed |
+| `intfloat/multilingual-e5-small` | ~100M | Lightweight, still solid |
+| `KennethTM/MiniLM-L6-danish-encoder-v2` | 22M | Danish-specific, fastest |
 
 Output: JSON file in the format `{"article_id": ["paragraph 1", "paragraph 2", ...]}`.
 
@@ -111,7 +120,8 @@ python cli.py evaluate \
   --system-prompt prompts/system.txt \
   --user-template prompts/template.txt \
   --model mistral \
-  --output data/evaluations/
+  --output data/evaluations/ \
+  --n-articles 5
 ```
 
 - `--segments` / `-s`: Path to a segments JSON file from step 1
@@ -119,11 +129,14 @@ python cli.py evaluate \
 - `--user-template`: Path to your user template text file (must contain `{text}`)
 - `--model` / `-m`: Ollama base model name (default: `mistral`)
 - `--output` / `-o`: Output directory (default: `data/evaluations/`)
-- `--n-segments` / `-n`: Only evaluate the first N segments, for testing on smaller samples
+- `--n-articles` / `-n`: Randomly sample N articles to evaluate (for testing)
+- `--restart`: Re-evaluate from scratch, ignoring any existing results
+
+**Incremental evaluation:** Re-running the command appends new results — articles that have already been evaluated are automatically skipped. Use `--restart` to discard previous results and start fresh.
 
 A progress bar shows how many paragraphs have been evaluated across all source files.
 
-Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_index`, `text`, `model_evaluation`.
+Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_index`, `text`, `binary_flag`, `position`, `reason`, `raw_evaluation`. The three structured columns are parsed from the model response using `|||` as a delimiter. If parsing fails, they are null and the full response is preserved in `raw_evaluation`.
 
 ### 3. Review evaluations
 

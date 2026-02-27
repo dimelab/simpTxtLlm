@@ -40,12 +40,17 @@ def evaluate(
     user_template: Path = typer.Option(..., "--user-template", help="Path to user template text file with {text} placeholder"),
     model: str = typer.Option("mistral", "--model", "-m", help="Base Ollama model name"),
     output: Path = typer.Option("data/evaluations", "--output", "-o", help="Output directory for evaluation results"),
-    n_segments: Optional[int] = typer.Option(None, "--n-segments", "-n", help="Only evaluate the first N segments (for testing)"),
+    n_articles: Optional[int] = typer.Option(None, "--n-articles", "-n", help="Randomly sample N articles to evaluate (for testing)"),
+    restart: bool = typer.Option(False, "--restart", help="Re-evaluate from scratch, ignoring existing results"),
 ) -> None:
-    """Evaluate segmented paragraphs using an Ollama model."""
+    """Evaluate segmented paragraphs using an Ollama model.
+
+    Re-running appends results incrementally — already-evaluated articles are
+    skipped. Use --restart to force a fresh evaluation.
+    """
     from .evaluate import evaluate_segments
 
-    evaluate_segments(segments, system_prompt, user_template, model, output, n_segments)
+    evaluate_segments(segments, system_prompt, user_template, model, output, n_articles, restart)
 
 
 @app.command()
