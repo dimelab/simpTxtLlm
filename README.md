@@ -102,6 +102,7 @@ python discourse_tool/cli.py segment \
 - `--threshold` / `-t`: Cosine similarity threshold — lower values produce more splits (default: 0.3)
 - `--id-column`: (CSV only) Column name for the article identifier
 - `--text-column`: (CSV only) Column name for the article text content
+- `--n-files` / `-n`: Only process the first N files/rows, for testing on smaller samples
 
 Output: JSON file in the format `{"article_id": ["paragraph 1", "paragraph 2", ...]}`.
 
@@ -123,6 +124,7 @@ python discourse_tool/cli.py evaluate \
 - `--user-template`: Path to your user template text file (must contain `{text}`)
 - `--model` / `-m`: Ollama base model name (default: `mistral`)
 - `--output` / `-o`: Output directory (default: `data/evaluations/`)
+- `--n-segments` / `-n`: Only evaluate the first N segments, for testing on smaller samples
 
 A progress bar shows how many paragraphs have been evaluated across all source files.
 
