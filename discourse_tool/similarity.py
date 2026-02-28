@@ -54,6 +54,7 @@ def search_similar(
     target_path: Path,
     embedding_model: str = None,
     top_n: int = 10,
+    top_positions: int = None,
     output_dir: Path = None,
 ) -> None:
     cfg = Config()
@@ -71,8 +72,11 @@ def search_similar(
         print("No segments with binary_flag=1 found in evaluations.")
         return
 
-    # 2. Group by position and print summary
+    # 2. Group by position, optionally keep only the top N by count
     pos_groups = positives.group_by("position").agg(pl.col("text"))
+    if top_positions is not None:
+        pos_groups = pos_groups.with_columns(pl.col("text").list.len().alias("_count"))
+        pos_groups = pos_groups.sort("_count", descending=True).head(top_positions).drop("_count")
     position_names = pos_groups["position"].to_list()
     position_texts = pos_groups["text"].to_list()
 

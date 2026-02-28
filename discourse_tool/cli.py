@@ -104,6 +104,7 @@ def search_similar_cmd(
     target: Path = typer.Option(..., "--target", "-t", help="Target segments JSON or evaluation parquet to search"),
     embedding_model: Optional[str] = typer.Option(None, "--embedding-model", help="Sentence-transformers model for embeddings (default: all-MiniLM-L6-v2)"),
     top_n: int = typer.Option(10, "--top-n", "-n", help="Number of most similar segments to display per position"),
+    top_positions: Optional[int] = typer.Option(None, "--top-positions", help="Only use the N positions with the most texts"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for results (default: data/similarity/)"),
 ) -> None:
     """Find segments similar to known discourse positions using embedding similarity.
@@ -113,7 +114,7 @@ def search_similar_cmd(
     """
     from .similarity import search_similar
 
-    search_similar(evaluations, target, embedding_model, top_n, output)
+    search_similar(evaluations, target, embedding_model, top_n, top_positions, output)
 
 
 @app.command(name="normalize-positions")
