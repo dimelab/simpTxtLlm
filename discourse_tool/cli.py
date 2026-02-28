@@ -116,6 +116,24 @@ def search_similar_cmd(
     search_similar(evaluations, target, embedding_model, top_n, output)
 
 
+@app.command(name="normalize-positions")
+def normalize_positions_cmd(
+    evaluations: Path = typer.Option(..., "--evaluations", "-e", help="Path to evaluations parquet file"),
+    positions: list[str] = typer.Option(..., "--position", "-p", help="Canonical position label (repeatable)"),
+    threshold: float = typer.Option(0.6, "--threshold", "-t", help="Minimum similarity ratio to accept a match"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output parquet path (default: overwrite in-place)"),
+) -> None:
+    """Normalize noisy position labels to a canonical list using fuzzy matching.
+
+    Provide the canonical positions with repeated -p flags. Each unique position
+    in the evaluations file is matched to the closest canonical label using
+    string similarity. Positions below the threshold are kept as-is.
+    """
+    from .similarity import normalize_positions
+
+    normalize_positions(evaluations, positions, threshold, output)
+
+
 @app.command()
 def stats(
     file: Path = typer.Option(..., "--file", "-f", help="Path to evaluations or reviewed parquet file"),

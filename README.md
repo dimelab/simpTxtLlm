@@ -214,7 +214,27 @@ Embeddings are cached as `{stem}_embeddings.npz` alongside the source file to av
 
 Output: prints a position summary and the top-N most similar segments per position with similarity scores. Saves full results as `{target_stem}_similarity.parquet` and `{target_stem}_similarity.csv` with columns `source_file`, `paragraph_index`, `text`, `position`, `similarity`.
 
-### 7. Fine-tune
+### 7. Normalize positions
+
+Collapse noisy position labels to a canonical list using fuzzy string matching. Useful when LLM output has slight spelling variations of the same position.
+
+```bash
+python cli.py normalize-positions \
+  --evaluations data/evaluations/paper.parquet \
+  -p "anti-establishment" \
+  -p "pro-environment" \
+  -p "economic critique" \
+  --threshold 0.6
+```
+
+- `--evaluations` / `-e`: Path to an evaluations parquet file with a `position` column
+- `--position` / `-p`: A canonical position label (repeat for each label)
+- `--threshold` / `-t`: Minimum string similarity ratio (0–1) to accept a match (default: 0.6)
+- `--output` / `-o`: Output parquet path (default: overwrite in-place)
+
+Prints a mapping table showing each original position, the matched canonical label, and the similarity score. Positions below the threshold are kept as-is. Saves both `.parquet` and `.csv`.
+
+### 8. Fine-tune
 
 Use human corrections to improve model performance.
 

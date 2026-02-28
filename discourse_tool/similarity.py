@@ -1,4 +1,5 @@
 import json
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import numpy as np
@@ -178,3 +179,73 @@ def search_similar(
     results_df.write_parquet(parquet_path)
     results_df.write_csv(csv_path)
     print(f"\nFull results saved to {parquet_path} and {csv_path}")
+
+
+def normalize_positions(
+    evaluations_path: Path,
+    canonical_positions: list[str],
+    threshold: float = 0.6,
+    output: Path = None,
+) -> None:
+    df = pl.read_parquet(evaluations_path)
+
+    if "position" not in df.columns:
+        print("No 'position' column found in the evaluations file.")
+        return
+
+    # Get unique non-null, non-empty positions
+    unique_positions = (
+        df.select("position")
+        .filter(pl.col("position").is_not_null() & (pl.col("position") != ""))
+        .unique()
+        ["position"]
+        .to_list()
+    )
+
+    if not unique_positions:
+        print("No non-empty positions found.")
+        return
+
+    # Build mapping: original -> canonical
+    mapping = {}
+    for orig in unique_positions:
+        best_score = 0.0
+        best_match = None
+        orig_lower = orig.lower().strip()
+        for canonical in canonical_positions:
+            score = SequenceMatcher(None, orig_lower, canonical.lower().strip()).ratio()
+            if score > best_score:
+                best_score = score
+                best_match = canonical
+        if best_score >= threshold:
+            mapping[orig] = (best_match, best_score)
+        else:
+            mapping[orig] = (None, best_score)
+
+    # Print mapping table
+    print(f"\nPosition mapping (threshold={threshold}):")
+    print(f"{'Original':<40} {'Canonical':<30} {'Score':>6}")
+    print("-" * 78)
+    for orig in sorted(mapping.keys()):
+        canonical, score = mapping[orig]
+        if canonical is not None:
+            print(f"{orig:<40} {canonical:<30} {score:>6.3f}")
+        else:
+            print(f"{orig:<40} {'(kept as-is)':<30} {score:>6.3f}")
+
+    # Apply mapping
+    replace_map = {orig: canonical for orig, (canonical, _) in mapping.items() if canonical is not None}
+    if not replace_map:
+        print("\nNo positions matched above threshold. File unchanged.")
+        return
+
+    df = df.with_columns(pl.col("position").replace(replace_map))
+
+    # Determine output path
+    out_parquet = output if output is not None else evaluations_path
+    out_csv = out_parquet.with_suffix(".csv")
+
+    df.write_parquet(out_parquet)
+    df.write_csv(out_csv)
+    n_replaced = len(replace_map)
+    print(f"\nNormalized {n_replaced} position label(s). Saved to {out_parquet} and {out_csv}")
