@@ -97,7 +97,7 @@ def evaluate_segments(
         for i, text in enumerate(unevaluated[article_id])
     ]
 
-    # Evaluate each paragraph
+    # Evaluate each paragraph, saving every 1000 segments
     rows = []
     for source_file, i, text in tqdm(all_paragraphs, desc="Evaluating paragraphs"):
         user_message = user_template.replace("{text}", text)
@@ -129,7 +129,16 @@ def evaluate_segments(
             "raw_evaluation": raw,
         })
 
-    # Merge with existing results and save
+        if len(rows) % 1000 == 0:
+            new_df = pl.DataFrame(rows)
+            if existing_df is not None and not restart:
+                df = pl.concat([existing_df, new_df])
+            else:
+                df = new_df
+            df.write_parquet(parquet_path)
+            df.write_csv(csv_path)
+
+    # Final save
     new_df = pl.DataFrame(rows)
     if existing_df is not None and not restart:
         df = pl.concat([existing_df, new_df])

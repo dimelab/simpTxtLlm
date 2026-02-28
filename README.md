@@ -172,7 +172,28 @@ python cli.py stats --file data/training/human_evaluations.parquet
 
 Shows segment/article counts, binary flag distribution (0 vs 1 with percentages), position breakdown among flag=1 segments, and — for reviewed data — the acceptance rate (how often the reviewer agreed with the model).
 
-### 5. Fine-tune
+### 5. Score
+
+Evaluate how well the few-shot approach performs by splitting human-labelled data into train and test sets (by article, to avoid data leakage), building a few-shot model from the train set, and comparing its predictions against human labels on the test set.
+
+```bash
+python cli.py score \
+  --human-labels data/training/human_evaluations.parquet \
+  --system-prompt prompts/system.txt \
+  --user-template prompts/template.txt \
+  --model mistral \
+  --test-fraction 0.2
+```
+
+- `--human-labels`: Path to the reviewed human evaluations parquet from step 3
+- `--system-prompt`: Path to your system prompt text file
+- `--user-template`: Path to your user template text file (must contain `{text}`)
+- `--model` / `-m`: Ollama base model name (default: `mistral`)
+- `--test-fraction` / `-t`: Fraction of articles to hold out for testing (default: 0.2)
+
+Output: prints train/test split info, then accuracy, precision, recall, and F1 score.
+
+### 6. Fine-tune
 
 Use human corrections to improve model performance.
 

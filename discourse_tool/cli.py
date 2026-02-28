@@ -80,6 +80,25 @@ def finetune(
 
 
 @app.command()
+def score(
+    human_labels: Path = typer.Option(..., "--human-labels", help="Path to human evaluations parquet"),
+    system_prompt: Path = typer.Option(..., "--system-prompt", help="Path to system prompt text file"),
+    user_template: Path = typer.Option(..., "--user-template", help="Path to user template text file with {text} placeholder"),
+    model: str = typer.Option("mistral", "--model", "-m", help="Base Ollama model name"),
+    test_fraction: float = typer.Option(0.2, "--test-fraction", "-t", help="Fraction of articles to hold out for testing"),
+) -> None:
+    """Evaluate few-shot model accuracy with a train/test split.
+
+    Splits human-labelled data by article into train and test sets, builds a
+    few-shot model from the train set, runs it on the test set, and reports
+    accuracy, precision, recall, and F1.
+    """
+    from .finetune import score_model
+
+    score_model(human_labels, system_prompt, user_template, model, test_fraction)
+
+
+@app.command()
 def stats(
     file: Path = typer.Option(..., "--file", "-f", help="Path to evaluations or reviewed parquet file"),
 ) -> None:
