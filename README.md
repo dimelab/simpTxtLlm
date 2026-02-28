@@ -210,6 +210,7 @@ python cli.py search-similar \
 - `--top-n` / `-n`: Number of most similar segments to display per position (default: 10)
 - `--top-positions`: Only use the N positions with the most texts (default: all positions)
 - `--output` / `-o`: Output directory for results (default: `data/similarity/`)
+- `--restart`: Recompute embeddings from scratch, ignoring cached `.npz` files
 
 Embeddings are cached as `{stem}_embeddings.npz` alongside the source file to avoid recomputation. The cache is invalidated when the source file changes or a different embedding model is used.
 

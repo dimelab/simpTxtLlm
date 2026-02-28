@@ -23,12 +23,13 @@ def _get_or_compute_embeddings(
     source_path: Path,
     model,
     model_name: str,
+    restart: bool = False,
 ) -> np.ndarray:
     npz_path, meta_path = _cache_paths(source_path)
     source_mtime = source_path.stat().st_mtime
 
     # Try loading from cache
-    if npz_path.exists() and meta_path.exists():
+    if not restart and npz_path.exists() and meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if meta.get("model") == model_name and meta.get("source_mtime") == source_mtime:
             data = np.load(npz_path, allow_pickle=True)
@@ -56,6 +57,7 @@ def search_similar(
     top_n: int = 10,
     top_positions: int = None,
     output_dir: Path = None,
+    restart: bool = False,
 ) -> None:
     cfg = Config()
     if embedding_model is None:
@@ -89,7 +91,7 @@ def search_similar(
     # 4. Embed flag=1 texts and compute centroids
     all_pos_texts = positives["text"].to_list()
     pos_embeddings = _get_or_compute_embeddings(
-        all_pos_texts, evaluations_path, model, embedding_model,
+        all_pos_texts, evaluations_path, model, embedding_model, restart,
     )
 
     # Build centroid per position
@@ -129,7 +131,7 @@ def search_similar(
 
     # 6. Embed target texts
     target_embeddings = _get_or_compute_embeddings(
-        list(target_texts), target_path, model, embedding_model,
+        list(target_texts), target_path, model, embedding_model, restart,
     )
 
     # 7. Compute cosine similarity (L2-normalize then matrix multiply)
