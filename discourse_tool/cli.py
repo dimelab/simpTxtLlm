@@ -79,5 +79,47 @@ def finetune(
     finetune_fn(human_labels, mode, system_prompt, user_template, model, output)
 
 
+@app.command()
+def stats(
+    file: Path = typer.Option(..., "--file", "-f", help="Path to evaluations or reviewed parquet file"),
+) -> None:
+    """Show statistics for an evaluations or reviewed data file."""
+    import polars as pl
+
+    df = pl.read_parquet(file)
+    n_segments = len(df)
+    n_articles = df["source_file"].n_unique()
+
+    print(f"\nFile: {file}")
+    print(f"Segments: {n_segments}")
+    print(f"Articles: {n_articles}")
+
+    # Binary flag distribution (from evaluation or review)
+    flag_col = "human_flag" if "human_flag" in df.columns else "binary_flag"
+    if flag_col in df.columns:
+        counts = df.group_by(flag_col).len().sort(flag_col)
+        print(f"\n{flag_col} distribution:")
+        for row in counts.iter_rows(named=True):
+            pct = 100 * row["len"] / n_segments
+            print(f"  {row[flag_col]}: {row['len']} ({pct:.1f}%)")
+
+    # Acceptance rate (reviewed data only)
+    if "accepted" in df.columns:
+        n_accepted = df.filter(pl.col("accepted")).height
+        print(f"\nAccepted (agreed with model): {n_accepted}/{n_segments} ({100 * n_accepted / n_segments:.1f}%)")
+
+    # Position breakdown (if present and flag is 1)
+    if "position" in df.columns:
+        positives = df.filter(pl.col(flag_col) == "1") if flag_col in df.columns else df
+        if positives.height > 0:
+            pos_counts = positives.group_by("position").len().sort("len", descending=True)
+            print(f"\nPosition breakdown (flag=1):")
+            for row in pos_counts.iter_rows(named=True):
+                label = row["position"] if row["position"] else "(empty)"
+                print(f"  {label}: {row['len']}")
+
+    print()
+
+
 if __name__ == "__main__":
     app()

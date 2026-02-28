@@ -156,7 +156,23 @@ For each segment, you'll see the text, the model's `binary_flag`, and the positi
 
 Output: a `.parquet` file with all original columns plus `human_flag` (the confirmed value) and `accepted` (whether the reviewer agreed with the model).
 
-### 4. Fine-tune
+### 4. Stats
+
+View summary statistics for evaluation or reviewed data.
+
+```bash
+# After evaluation
+python cli.py stats --file data/evaluations/paper.parquet
+
+# After review
+python cli.py stats --file data/training/human_evaluations.parquet
+```
+
+- `--file` / `-f`: Path to an evaluations or reviewed parquet file
+
+Shows segment/article counts, binary flag distribution (0 vs 1 with percentages), position breakdown among flag=1 segments, and — for reviewed data — the acceptance rate (how often the reviewer agreed with the model).
+
+### 5. Fine-tune
 
 Use human corrections to improve model performance.
 
