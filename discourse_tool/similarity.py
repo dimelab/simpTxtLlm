@@ -31,7 +31,7 @@ def _get_or_compute_embeddings(
     if npz_path.exists() and meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if meta.get("model") == model_name and meta.get("source_mtime") == source_mtime:
-            data = np.load(npz_path)
+            data = np.load(npz_path, allow_pickle=True)
             cached_texts = data["texts"].tolist()
             if cached_texts == texts:
                 return data["embeddings"]
