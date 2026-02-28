@@ -22,6 +22,10 @@ class Config:
     def training_dir(self) -> Path:
         return self.data_dir / "training"
 
+    @property
+    def similarity_dir(self) -> Path:
+        return self.data_dir / "similarity"
+
     def ensure_dirs(self) -> None:
-        for d in (self.segments_dir, self.evaluations_dir, self.training_dir):
+        for d in (self.segments_dir, self.evaluations_dir, self.training_dir, self.similarity_dir):
             d.mkdir(parents=True, exist_ok=True)

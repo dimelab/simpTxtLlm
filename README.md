@@ -208,11 +208,11 @@ python cli.py search-similar \
 - `--target` / `-t`: Target file to search — either a segments JSON or an evaluation parquet
 - `--embedding-model`: Sentence-transformers model for embeddings (default: `all-MiniLM-L6-v2`)
 - `--top-n` / `-n`: Number of most similar segments to display per position (default: 10)
-- `--output` / `-o`: Output directory for results parquet (default: `data/evaluations/`)
+- `--output` / `-o`: Output directory for results (default: `data/similarity/`)
 
 Embeddings are cached as `{stem}_embeddings.npz` alongside the source file to avoid recomputation. The cache is invalidated when the source file changes or a different embedding model is used.
 
-Output: prints a position summary and the top-N most similar segments per position with similarity scores. Saves full results as `{target_stem}_similarity.parquet` with columns `source_file`, `paragraph_index`, `text`, `position`, `similarity`.
+Output: prints a position summary and the top-N most similar segments per position with similarity scores. Saves full results as `{target_stem}_similarity.parquet` and `{target_stem}_similarity.csv` with columns `source_file`, `paragraph_index`, `text`, `position`, `similarity`.
 
 ### 7. Fine-tune
 

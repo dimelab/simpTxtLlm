@@ -59,7 +59,7 @@ def search_similar(
     if embedding_model is None:
         embedding_model = cfg.embedding_model
     if output_dir is None:
-        output_dir = cfg.evaluations_dir
+        output_dir = cfg.similarity_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Load evaluations and filter to flag=1
@@ -173,6 +173,8 @@ def search_similar(
 
     # 10. Save full results
     results_df = results_df.sort(["position", "similarity"], descending=[False, True])
-    out_path = output_dir / f"{target_path.stem}_similarity.parquet"
-    results_df.write_parquet(out_path)
-    print(f"\nFull results saved to {out_path}")
+    parquet_path = output_dir / f"{target_path.stem}_similarity.parquet"
+    csv_path = output_dir / f"{target_path.stem}_similarity.csv"
+    results_df.write_parquet(parquet_path)
+    results_df.write_csv(csv_path)
+    print(f"\nFull results saved to {parquet_path} and {csv_path}")
