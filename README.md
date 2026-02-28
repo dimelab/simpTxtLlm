@@ -193,7 +193,28 @@ python cli.py score \
 
 Output: prints train/test split info, then accuracy, precision, recall, and F1 score.
 
-### 6. Fine-tune
+### 6. Search similar
+
+Find segments in unevaluated data that are similar to known discourse positions. Takes an evaluation parquet with labelled positions (binary_flag=1), computes a centroid embedding per position, then ranks segments in a target file by cosine similarity to each centroid.
+
+```bash
+python cli.py search-similar \
+  --evaluations data/evaluations/paper.parquet \
+  --target data/segments/other_paper.json \
+  --top-n 5
+```
+
+- `--evaluations` / `-e`: Reference parquet with labelled positions (must have `binary_flag`, `position`, and `text` columns)
+- `--target` / `-t`: Target file to search — either a segments JSON or an evaluation parquet
+- `--embedding-model`: Sentence-transformers model for embeddings (default: `all-MiniLM-L6-v2`)
+- `--top-n` / `-n`: Number of most similar segments to display per position (default: 10)
+- `--output` / `-o`: Output directory for results parquet (default: `data/evaluations/`)
+
+Embeddings are cached as `{stem}_embeddings.npz` alongside the source file to avoid recomputation. The cache is invalidated when the source file changes or a different embedding model is used.
+
+Output: prints a position summary and the top-N most similar segments per position with similarity scores. Saves full results as `{target_stem}_similarity.parquet` with columns `source_file`, `paragraph_index`, `text`, `position`, `similarity`.
+
+### 7. Fine-tune
 
 Use human corrections to improve model performance.
 

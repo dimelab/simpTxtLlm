@@ -98,6 +98,24 @@ def score(
     score_model(human_labels, system_prompt, user_template, model, test_fraction)
 
 
+@app.command(name="search-similar")
+def search_similar_cmd(
+    evaluations: Path = typer.Option(..., "--evaluations", "-e", help="Reference parquet with labelled positions (binary_flag=1)"),
+    target: Path = typer.Option(..., "--target", "-t", help="Target segments JSON or evaluation parquet to search"),
+    embedding_model: Optional[str] = typer.Option(None, "--embedding-model", help="Sentence-transformers model for embeddings (default: all-MiniLM-L6-v2)"),
+    top_n: int = typer.Option(10, "--top-n", "-n", help="Number of most similar segments to display per position"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for results parquet (default: data/evaluations/)"),
+) -> None:
+    """Find segments similar to known discourse positions using embedding similarity.
+
+    Takes an evaluation parquet with labelled positions and ranks segments in a
+    target file by cosine similarity to each position's centroid embedding.
+    """
+    from .similarity import search_similar
+
+    search_similar(evaluations, target, embedding_model, top_n, output)
+
+
 @app.command()
 def stats(
     file: Path = typer.Option(..., "--file", "-f", help="Path to evaluations or reviewed parquet file"),
