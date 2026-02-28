@@ -1,4 +1,5 @@
 import json
+import random
 from pathlib import Path
 
 import polars as pl
@@ -28,11 +29,12 @@ def review_evaluations(evaluations_path: Path, output_path: Path = None) -> None
             (r["source_file"], r["paragraph_index"]) for r in reviewed_rows
         }
 
-    # Filter to unreviewed segments
+    # Filter to unreviewed segments and shuffle
     to_review = [
         (i, row) for i, row in enumerate(df.iter_rows(named=True))
         if (row["source_file"], row["paragraph_index"]) not in reviewed_keys
     ]
+    random.shuffle(to_review)
 
     total = len(df)
     n_already = len(reviewed_keys)
