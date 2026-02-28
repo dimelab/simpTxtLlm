@@ -76,7 +76,11 @@ def evaluate_segments(
     total_articles = len(segments)
     n_already = len(already_evaluated)
     n_this_run = len(article_ids)
-    n_paragraphs = sum(len(unevaluated[aid]) for aid in article_ids)
+    n_paragraphs = sum(
+        1 for aid in article_ids
+        for text in unevaluated[aid]
+        if len(text) >= 30
+    )
     print(f"{n_already} articles already evaluated, {n_this_run} to evaluate this run ({n_paragraphs} paragraphs), {total_articles} total")
 
     if n_this_run == 0:
@@ -90,12 +94,14 @@ def evaluate_segments(
     create_modelfile(base_model, system_prompt, modelfile_path)
     create_ollama_model(custom_model_name, modelfile_path)
 
-    # Build paragraph list from selected articles
+    # Build paragraph list from selected articles, skip very short segments
     all_paragraphs = [
         (article_id, i, text)
         for article_id in article_ids
         for i, text in enumerate(unevaluated[article_id])
+        if len(text) >= 30
     ]
+    random.shuffle(all_paragraphs)
 
     # Evaluate each paragraph, saving every 1000 segments
     rows = []
