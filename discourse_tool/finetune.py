@@ -17,30 +17,64 @@ def review_evaluations(evaluations_path: Path, output_path: Path = None) -> None
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     df = pl.read_parquet(evaluations_path)
-    human_evaluations = []
-    accepted_flags = []
+
+    # Load already-reviewed rows if output exists
+    reviewed_rows = []
+    reviewed_keys = set()
+    if output_path.exists():
+        existing = pl.read_parquet(output_path)
+        reviewed_rows = existing.to_dicts()
+        reviewed_keys = {
+            (r["source_file"], r["paragraph_index"]) for r in reviewed_rows
+        }
+
+    # Filter to unreviewed segments
+    to_review = [
+        (i, row) for i, row in enumerate(df.iter_rows(named=True))
+        if (row["source_file"], row["paragraph_index"]) not in reviewed_keys
+    ]
 
     total = len(df)
-    for i, row in enumerate(df.iter_rows(named=True)):
-        print(f"\n--- Paragraph {i + 1}/{total} [{row['source_file']}] ---")
+    n_already = len(reviewed_keys)
+    print(f"{n_already}/{total} segments already reviewed, {len(to_review)} remaining")
+
+    if not to_review:
+        print("Nothing new to review.")
+        return
+
+    for idx, (i, row) in enumerate(to_review):
+        model_flag = row.get("binary_flag", "?")
+        print(f"\n--- Segment {n_already + idx + 1}/{total} [{row['source_file']} §{row['paragraph_index']}] ---")
         print(f"\nText:\n{row['text']}")
-        print(f"\nModel evaluation:\n{row['model_evaluation']}")
-        print("\nPress Enter to accept, or type a corrected evaluation:")
+        print(f"\nModel flag: {model_flag}")
+        if row.get("position"):
+            print(f"Position: {row['position']}")
+        if row.get("reason"):
+            print(f"Reason: {row['reason']}")
+        print(f"\nPress Enter to accept '{model_flag}', or type 0/1 to override:")
 
-        user_input = input("> ").strip()
-        if user_input:
-            human_evaluations.append(user_input)
-            accepted_flags.append(False)
-        else:
-            human_evaluations.append(row["model_evaluation"])
-            accepted_flags.append(True)
+        while True:
+            user_input = input("> ").strip()
+            if user_input == "":
+                human_flag = model_flag
+                accepted = True
+                break
+            elif user_input in ("0", "1"):
+                human_flag = user_input
+                accepted = user_input == model_flag
+                break
+            else:
+                print("Please enter 0, 1, or press Enter to accept.")
 
-    result_df = df.with_columns(
-        pl.Series("human_evaluation", human_evaluations),
-        pl.Series("accepted", accepted_flags),
-    )
-    result_df.write_parquet(output_path)
-    print(f"\nHuman evaluations saved to {output_path}")
+        reviewed_row = dict(row)
+        reviewed_row["human_flag"] = human_flag
+        reviewed_row["accepted"] = accepted
+        reviewed_rows.append(reviewed_row)
+
+        # Save after every review so no progress is lost
+        pl.DataFrame(reviewed_rows).write_parquet(output_path)
+
+    print(f"\nReview complete. {total} segments saved to {output_path}")
 
 
 # --- Part B: Fine-Tuning ---
@@ -88,7 +122,8 @@ def _finetune_few_shot(
     examples = []
     for row in df.iter_rows(named=True):
         example_input = user_template.replace("{text}", row["text"])
-        examples.append(f"Example input:\n{example_input}\n\nExample output:\n{row['human_evaluation']}")
+        example_output = f"{row['human_flag']} ||| {row.get('position', '')} ||| {row.get('reason', '')}"
+        examples.append(f"Example input:\n{example_input}\n\nExample output:\n{example_output}")
 
     examples_block = "\n\n---\n\n".join(examples)
     enriched_prompt = (
@@ -132,7 +167,8 @@ def _finetune_full(
                 prompt = f"{system_prompt}\n\n{user_message}"
             else:
                 prompt = user_message
-            entry = {"prompt": prompt, "response": row["human_evaluation"]}
+            response = f"{row['human_flag']} ||| {row.get('position', '')} ||| {row.get('reason', '')}"
+            entry = {"prompt": prompt, "response": response}
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     # Generate axolotl config

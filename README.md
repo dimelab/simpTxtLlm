@@ -140,7 +140,7 @@ Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_inde
 
 ### 3. Review evaluations
 
-Interactively review model outputs and provide corrections.
+Interactively review the model's binary classification (1 = anti-establishment position present, 0 = not).
 
 ```bash
 python cli.py review \
@@ -148,9 +148,13 @@ python cli.py review \
 ```
 
 - `--evaluations` / `-e`: Path to the evaluation parquet file from step 2
-- `--output` / `-o`: Output path for corrected data (default: `data/training/human_evaluations.parquet`)
+- `--output` / `-o`: Output path for reviewed data (default: `data/training/human_evaluations.parquet`)
 
-For each paragraph, you'll see the text and the model's evaluation. Press Enter to accept, or type a corrected evaluation.
+For each segment, you'll see the text, the model's `binary_flag`, and the position/reason for context. Press Enter to accept the flag, or type `0` or `1` to override.
+
+**Incremental review:** Progress is saved after every single segment, so you can quit at any time (Ctrl+C) without losing work. Re-running the command picks up where you left off, skipping already-reviewed segments.
+
+Output: a `.parquet` file with all original columns plus `human_flag` (the confirmed value) and `accepted` (whether the reviewer agreed with the model).
 
 ### 4. Fine-tune
 

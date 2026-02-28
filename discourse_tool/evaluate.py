@@ -76,7 +76,8 @@ def evaluate_segments(
     total_articles = len(segments)
     n_already = len(already_evaluated)
     n_this_run = len(article_ids)
-    print(f"{n_already} articles already evaluated, {n_this_run} to evaluate this run, {total_articles} total")
+    n_paragraphs = sum(len(unevaluated[aid]) for aid in article_ids)
+    print(f"{n_already} articles already evaluated, {n_this_run} to evaluate this run ({n_paragraphs} paragraphs), {total_articles} total")
 
     if n_this_run == 0:
         print("Nothing new to evaluate.")
