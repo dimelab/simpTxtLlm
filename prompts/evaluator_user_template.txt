@@ -1,0 +1,28 @@
+You are evaluating a batch of discourse analyses. The analyst was given the following instructions:
+
+<analytical_framework>
+{system_prompt}
+
+The analyst was then asked to apply this framework to each text segment using the following task instruction:
+
+{user_template}
+</analytical_framework>
+
+Below is a batch of cases. Each case contains the original text and the label assigned by the analyst. The analyst's reasoning is not included — form your own judgment.
+
+<batch>
+{batch_items}
+</batch>
+
+Each case is formatted as:
+
+<case id="CASE_ID">
+<text>
+TEXT
+</text>
+<assigned_label>
+LABEL
+</assigned_label>
+</case>
+
+First review all cases to calibrate your standards, then evaluate each case. Respond with a JSON array only.

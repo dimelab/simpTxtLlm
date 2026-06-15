@@ -138,7 +138,56 @@ A progress bar shows how many paragraphs have been evaluated across all source f
 
 Output: a `.parquet` and `.csv` file with columns `source_file`, `paragraph_index`, `text`, `binary_flag`, `position`, `reason`, `raw_evaluation`. The three structured columns are parsed from the model response using `|||` as a delimiter. If parsing fails, they are null and the full response is preserved in `raw_evaluation`.
 
-### 3. Review evaluations
+### 3. Intermediary evaluation (assisted)
+
+Independently re-assess the analyst model's initial coding before you commit to human review. A second-pass "methodological evaluator" model reads each flagged paragraph (`binary_flag=1`) against the *original* analytical framework and judges whether the assigned label is supported by the text — **without seeing the analyst's `reason`**, so it forms its own judgment rather than grading the analyst's argument.
+
+```bash
+python cli.py intermediary-evaluate \
+  --evaluations data/evaluations/paper.csv \
+  --analyst-system-prompt prompts/system.txt \
+  --analyst-user-template prompts/template.txt \
+  --evaluator-system-prompt prompts/evaluator_system.txt \
+  --evaluator-user-template prompts/evaluator_user_template.txt \
+  --model mistral \
+  --threshold clear \
+  --min-confidence 4
+```
+
+Cases are sent to the evaluator in **batches** so it can calibrate its standards comparatively, classifying each as:
+
+- **CLEAR** — strong, independent textual evidence for the label.
+- **BORDERLINE** — partial/subtle evidence, open to alternative interpretation.
+- **ABSENT** — no meaningful textual evidence; the label appears to over-interpret the text.
+
+Each case also gets a `confidence` (1–5), `evidence`, `strongest_feature`, and `weakest_feature`.
+
+- `--evaluations` / `-e`: Evaluations file (CSV or parquet) from step 2
+- `--analyst-system-prompt` / `--analyst-user-template`: the prompts used for the original evaluation (shown to the evaluator as the framework)
+- `--evaluator-system-prompt` / `--evaluator-user-template`: the evaluator's own prompts (defaults provided in `prompts/`)
+- `--model` / `-m`: base Ollama model for the evaluator (default: `mistral`)
+- `--position` / `-p`: restrict to these positions (repeatable); other positives are discarded. Run `normalize-positions` first to collapse noisy labels.
+- `--batch-size`: cases per batch (default: auto-estimated from the context window)
+- `--context-window`: Ollama `num_ctx` for batched calls (default: `32000`) — **must** be large enough to hold a full batch, or cases are silently truncated
+- `--overlap`: anchor cases carried between batches to measure consistency (default: 5)
+- `--shuffle` / `--no-shuffle`, `--seed`: batch composition (default: shuffle, seed 42)
+- `--threshold`: `clear` (CLEAR only) or `borderline` (CLEAR + BORDERLINE) for the filtered output
+- `--min-confidence`: minimum evaluator confidence (1–5) to pass the filter
+- `--output` / `-o`: output directory (default: `data/intermediary/`)
+- `--restart`: re-evaluate from scratch, ignoring existing results
+
+**Scope:** only flagged positives (`binary_flag=1`) with text ≥ 30 chars are evaluated. **Incremental:** results are saved after every batch and re-running resumes where it left off (`--restart` to force fresh).
+
+Output (in `data/intermediary/`):
+
+| File | Contents |
+|------|----------|
+| `{stem}_evaluated.parquet` / `.csv` | all selected cases with `tier`, `confidence`, `evidence`, `strongest_feature`, `weakest_feature` appended |
+| `{stem}_filtered.parquet` / `.csv` | only cases passing `--threshold` + `--min-confidence` |
+| `{stem}_calibration.parquet` | per-batch tier distribution with a `drift_flag` when a batch deviates >20pp from the mean |
+| `{stem}_anchors.parquet` | anchor cases compared across batches (`consistent` flag) |
+
+### 4. Review evaluations
 
 Interactively review the model's binary classification (1 = anti-establishment position present, 0 = not).
 
@@ -156,7 +205,7 @@ For each segment, you'll see the text, the model's `binary_flag`, and the positi
 
 Output: a `.parquet` file with all original columns plus `human_flag` (the confirmed value) and `accepted` (whether the reviewer agreed with the model).
 
-### 4. Stats
+### 5. Stats
 
 View summary statistics for evaluation or reviewed data.
 
@@ -172,7 +221,7 @@ python cli.py stats --file data/training/human_evaluations.parquet
 
 Shows segment/article counts, binary flag distribution (0 vs 1 with percentages), position breakdown among flag=1 segments, and — for reviewed data — the acceptance rate (how often the reviewer agreed with the model).
 
-### 5. Score
+### 6. Score
 
 Evaluate how well the few-shot approach performs by splitting human-labelled data into train and test sets (by article, to avoid data leakage), building a few-shot model from the train set, and comparing its predictions against human labels on the test set.
 
@@ -193,7 +242,7 @@ python cli.py score \
 
 Output: prints train/test split info, then accuracy, precision, recall, and F1 score.
 
-### 6. Search similar
+### 7. Search similar
 
 Find segments in unevaluated data that are similar to known discourse positions. Takes an evaluation parquet with labelled positions (binary_flag=1), computes a centroid embedding per position, then ranks segments in a target file by cosine similarity to each centroid.
 
@@ -216,7 +265,7 @@ Embeddings are cached as `{stem}_embeddings.npz` alongside the source file to av
 
 Output: prints a position summary and the top-N most similar segments per position with similarity scores. Saves full results as `{target_stem}_similarity.parquet` and `{target_stem}_similarity.csv` with columns `source_file`, `paragraph_index`, `text`, `position`, `similarity`.
 
-### 7. Normalize positions
+### 8. Normalize positions
 
 Collapse noisy position labels to a canonical list using fuzzy string matching. Useful when LLM output has slight spelling variations of the same position.
 
@@ -236,7 +285,7 @@ python cli.py normalize-positions \
 
 Prints a mapping table showing each original position, the matched canonical label, and the similarity score. Positions below the threshold are kept as-is. Saves both `.parquet` and `.csv`.
 
-### 8. Fine-tune
+### 9. Fine-tune
 
 Use human corrections to improve model performance.
 
@@ -272,10 +321,14 @@ discourse_tool/
 ├── config.py           # Shared configuration (paths, model defaults, thresholds)
 ├── segment.py          # Document parsing and semantic splitting
 ├── evaluate.py         # Ollama model creation and evaluation loop
+├── intermediary.py     # Assisted intermediary (batch comparative) evaluation
+├── similarity.py       # Embedding-similarity search and position normalization
 ├── finetune.py         # Human review CLI and fine-tuning data export
 ├── cli.py              # Typer app definition
 data/
 ├── segments/       # JSON output from segmentation
 ├── evaluations/    # Parquet + CSV evaluation results
+├── intermediary/   # Intermediary-evaluation results and diagnostics
+├── similarity/     # Similarity search results
 └── training/       # Human-labeled data and fine-tuning artifacts
 ```

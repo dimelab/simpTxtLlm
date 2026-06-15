@@ -1,0 +1,11 @@
+# Data outputs (segments, evaluations, training, similarity)
+data/**
+!data/
+!data/**/
+!data/**/.gitkeep
+
+# Python virtual environment
+.venv/
+
+# macOS
+.DS_Store

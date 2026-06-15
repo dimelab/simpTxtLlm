@@ -136,6 +136,46 @@ def normalize_positions_cmd(
     normalize_positions(evaluations, positions, threshold, output)
 
 
+@app.command(name="intermediary-evaluate")
+def intermediary_evaluate_cmd(
+    evaluations: Path = typer.Option(..., "--evaluations", "-e", help="Evaluations file (CSV or parquet) from the evaluate step"),
+    analyst_system_prompt: Path = typer.Option(..., "--analyst-system-prompt", help="System prompt used for the original evaluation"),
+    analyst_user_template: Path = typer.Option(..., "--analyst-user-template", help="User template used for the original evaluation"),
+    evaluator_system_prompt: Path = typer.Option(..., "--evaluator-system-prompt", help="Evaluator system prompt (e.g. prompts/evaluator_system.txt)"),
+    evaluator_user_template: Path = typer.Option(..., "--evaluator-user-template", help="Evaluator user template (e.g. prompts/evaluator_user_template.txt)"),
+    model: str = typer.Option("mistral", "--model", "-m", help="Base Ollama model for the evaluator"),
+    position: Optional[list[str]] = typer.Option(None, "--position", "-p", help="Restrict to these positions (repeatable); others discarded"),
+    batch_size: Optional[int] = typer.Option(None, "--batch-size", help="Cases per batch (default: auto-estimate from context window)"),
+    context_window: Optional[int] = typer.Option(None, "--context-window", help="Ollama num_ctx for batched calls (default: 32000)"),
+    overlap: Optional[int] = typer.Option(None, "--overlap", help="Anchor cases carried between batches (default: 5)"),
+    shuffle: bool = typer.Option(True, "--shuffle/--no-shuffle", help="Shuffle cases before batching"),
+    seed: Optional[int] = typer.Option(None, "--seed", help="Shuffle seed (default: 42)"),
+    threshold: str = typer.Option("clear", "--threshold", help="Filter tier: 'clear' (CLEAR only) or 'borderline' (CLEAR+BORDERLINE)"),
+    min_confidence: int = typer.Option(1, "--min-confidence", help="Minimum evaluator confidence (1-5) to pass the filter"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory (default: data/intermediary/)"),
+    restart: bool = typer.Option(False, "--restart", help="Re-evaluate from scratch, ignoring existing results"),
+) -> None:
+    """Independently re-assess the initial coding of flagged paragraphs.
+
+    A second-pass evaluator model reads each flagged case (binary_flag=1) against
+    the original analytical framework and tiers it CLEAR / BORDERLINE / ABSENT.
+    Re-running resumes; already-evaluated cases are skipped unless --restart.
+    """
+    if threshold not in ("clear", "borderline"):
+        raise typer.BadParameter("--threshold must be 'clear' or 'borderline'")
+
+    from .intermediary import intermediary_evaluate
+
+    intermediary_evaluate(
+        evaluations, analyst_system_prompt, analyst_user_template,
+        evaluator_system_prompt, evaluator_user_template,
+        base_model=model, positions=position, batch_size=batch_size,
+        context_window=context_window, overlap=overlap, shuffle=shuffle,
+        seed=seed, threshold=threshold, min_confidence=min_confidence,
+        output_dir=output, restart=restart,
+    )
+
+
 @app.command()
 def stats(
     file: Path = typer.Option(..., "--file", "-f", help="Path to evaluations or reviewed parquet file"),
