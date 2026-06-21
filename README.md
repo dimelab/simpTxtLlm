@@ -173,6 +173,7 @@ Each case also gets a `confidence` (1–5), `evidence`, `strongest_feature`, and
 - `--shuffle` / `--no-shuffle`, `--seed`: batch composition (default: shuffle, seed 42)
 - `--threshold`: `clear` (CLEAR only) or `borderline` (CLEAR + BORDERLINE) for the filtered output
 - `--min-confidence`: minimum evaluator confidence (1–5) to pass the filter
+- `--negative-fraction`: fraction of `binary_flag=0` cases to mix into each batch as **calibration salt** (default `0.0`; e.g. `0.15`). Only positives are evaluated and saved — the negatives are shown to the evaluator purely to widen its comparative range (the absence end of the spectrum), which sharpens the BORDERLINE↔ABSENT boundary for the positives. Their verdicts are discarded and they never appear in any output or in the calibration/anchor reports.
 - `--output` / `-o`: output directory (default: `data/intermediary/`)
 - `--restart`: re-evaluate from scratch, ignoring existing results
 

@@ -152,6 +152,7 @@ def intermediary_evaluate_cmd(
     seed: Optional[int] = typer.Option(None, "--seed", help="Shuffle seed (default: 42)"),
     threshold: str = typer.Option("clear", "--threshold", help="Filter tier: 'clear' (CLEAR only) or 'borderline' (CLEAR+BORDERLINE)"),
     min_confidence: int = typer.Option(1, "--min-confidence", help="Minimum evaluator confidence (1-5) to pass the filter"),
+    negative_fraction: float = typer.Option(0.0, "--negative-fraction", help="Fraction of binary_flag=0 cases to mix into each batch as discarded calibration salt (e.g. 0.15)"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory (default: data/intermediary/)"),
     restart: bool = typer.Option(False, "--restart", help="Re-evaluate from scratch, ignoring existing results"),
 ) -> None:
@@ -163,6 +164,8 @@ def intermediary_evaluate_cmd(
     """
     if threshold not in ("clear", "borderline"):
         raise typer.BadParameter("--threshold must be 'clear' or 'borderline'")
+    if not 0.0 <= negative_fraction < 1.0:
+        raise typer.BadParameter("--negative-fraction must be in [0.0, 1.0)")
 
     from .intermediary import intermediary_evaluate
 
@@ -172,7 +175,7 @@ def intermediary_evaluate_cmd(
         base_model=model, positions=position, batch_size=batch_size,
         context_window=context_window, overlap=overlap, shuffle=shuffle,
         seed=seed, threshold=threshold, min_confidence=min_confidence,
-        output_dir=output, restart=restart,
+        negative_fraction=negative_fraction, output_dir=output, restart=restart,
     )
 
 

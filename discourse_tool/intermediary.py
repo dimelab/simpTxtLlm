@@ -85,9 +85,26 @@ def select_cases(df: pl.DataFrame, positions: list[str] = None, min_len: int = 3
     return out
 
 
+def select_negatives(df: pl.DataFrame, min_len: int = 30) -> pl.DataFrame:
+    """Select negatives (binary_flag=0) used only as discarded calibration salt.
+
+    These are interspersed into batches to widen the evaluator's comparative
+    range (its STEP 1 calibration); their verdicts are never persisted.
+    """
+    flag = (
+        pl.col("binary_flag")
+        .cast(pl.Utf8, strict=False)
+        .str.replace_all("`", "")
+        .str.strip_chars()
+    )
+    out = df.filter(flag == "0")
+    out = out.filter(pl.col("text").is_not_null() & (pl.col("text").str.len_chars() >= min_len))
+    return out
+
+
 def build_label(row: dict) -> str:
     """The label the evaluator independently verifies — no analyst reason."""
-    position = row.get("position") or ""
+    position = (str(row.get("position")) if row.get("position") is not None else "").strip() or "(none)"
     flag = str(row["binary_flag"]).replace("`", "").strip()
     return f"binary_flag={flag}; position={position}"
 
@@ -147,17 +164,22 @@ def create_batches(
     overlap: int = 5,
     shuffle: bool = True,
     seed: int = 42,
+    negative_ids: list[int] = None,
+    negative_fraction: float = 0.0,
 ) -> list[dict]:
-    """Create batches with optional shuffling and overlap anchors.
+    """Create batches with optional shuffling, overlap anchors and salt negatives.
 
-    Each batch dict has 'ids' (all case_ids in the batch, anchors first),
-    'anchor_ids' (carried from the previous batch) and 'new_ids' (unique to
-    this batch). The tail of each batch's new cases anchors the next batch.
+    Each batch dict has 'ids' (all case_ids sent to the evaluator, order
+    shuffled), 'anchor_ids' (positives carried from the previous batch),
+    'new_ids' (positives unique to this batch) and 'salt_ids' (negatives mixed
+    in only for calibration — their verdicts are discarded). The tail of each
+    batch's new cases anchors the next batch.
     """
+    random.seed(seed)  # seed unconditionally so salt sampling is deterministic
     ids = list(case_ids)
     if shuffle:
-        random.seed(seed)
         random.shuffle(ids)
+    negative_ids = negative_ids or []
 
     batches = []
     i = 0
@@ -168,10 +190,21 @@ def create_batches(
         remaining = max(1, batch_size - len(anchors))
         new = ids[i : i + remaining]
         i += remaining
+        positives = anchors + new
+
+        salt = []
+        if negative_ids and negative_fraction > 0:
+            n_salt = round(negative_fraction * len(positives))
+            if n_salt > 0:
+                salt = random.sample(negative_ids, min(n_salt, len(negative_ids)))
+
+        batch_ids = positives + salt
+        random.shuffle(batch_ids)  # intersperse salt so it isn't positionally distinct
         batches.append({
-            "ids": anchors + new,
+            "ids": batch_ids,
             "anchor_ids": set(anchors),
             "new_ids": set(new),
+            "salt_ids": set(salt),
         })
         prev_tail = new
     return batches
@@ -289,6 +322,7 @@ def intermediary_evaluate(
     seed: int = None,
     threshold: str = "clear",
     min_confidence: int = 1,
+    negative_fraction: float = 0.0,
     output_dir: Path = None,
     restart: bool = False,
 ) -> None:
@@ -362,7 +396,30 @@ def intermediary_evaluate(
     print(f"Batch size: {batch_size}, overlap: {overlap}, context window: {context_window}")
 
     row_lookup = {row["case_id"]: row for row in to_eval.iter_rows(named=True)}
-    batches = create_batches(list(row_lookup.keys()), batch_size, overlap, shuffle, seed)
+    positive_ids = set(row_lookup.keys())
+
+    # Salt negatives: mixed into batches only to widen the evaluator's
+    # comparative calibration range. Their verdicts are discarded. We cap the
+    # working pool for efficiency/variety; per-batch samples may reuse it.
+    NEG_POOL_CAP = 2000
+    negative_ids = []
+    if negative_fraction > 0:
+        neg_pool = select_negatives(df)
+        if neg_pool.height == 0:
+            print("Warning: --negative-fraction set but no binary_flag=0 cases found; running without salt.")
+        else:
+            if neg_pool.height > NEG_POOL_CAP:
+                neg_pool = neg_pool.sample(NEG_POOL_CAP, seed=seed)
+            neg_pool = neg_pool.with_row_index("case_id", offset=to_eval.height)
+            for row in neg_pool.iter_rows(named=True):
+                row_lookup[row["case_id"]] = row
+            negative_ids = neg_pool["case_id"].to_list()
+            print(f"Salt: ~{negative_fraction:.0%} negatives per batch from a pool of {len(negative_ids)}")
+
+    batches = create_batches(
+        list(positive_ids), batch_size, overlap, shuffle, seed,
+        negative_ids=negative_ids, negative_fraction=negative_fraction,
+    )
     print(f"Created {len(batches)} batches")
 
     new_results = {}            # case_id -> {tier, confidence} (first appearance)
@@ -401,6 +458,9 @@ def intermediary_evaluate(
                 continue
             tier = _normalize_tier(ev.get("tier"))
             conf = _coerce_confidence(ev.get("confidence"))
+
+            if cid not in positive_ids:
+                continue  # salt negative — used only for calibration, never stored
 
             if cid in batch["anchor_ids"]:
                 anchor_classifications.setdefault(cid, []).append(

@@ -6,6 +6,8 @@ You receive:
 
 You do NOT receive the analyst's reasoning. You must independently assess whether each label is justified by reading the original text against the analytical framework.
 
+Some cases carry a negative label (binary_flag=0, with no position). These are included as contrast points to help you calibrate the full range of evidentiary strength in the batch. Evaluate every case the same way — judging whether its assigned label is supported by the text.
+
 You work in two steps.
 
 STEP 1 — COMPARATIVE CALIBRATION
