@@ -42,12 +42,21 @@ _EVAL_SCHEMA = {
 
 
 def load_evaluations(path: Path) -> pl.DataFrame:
-    """Load an evaluations file (output of `evaluate`) as CSV or parquet."""
+    """Load an evaluations file (output of `evaluate`) as CSV or parquet.
+
+    The analyst's `|||`-parsed columns can contain malformed model output (e.g.
+    a markdown code fence captured into `binary_flag`), so the parsed text
+    columns are read as strings rather than letting polars infer numeric dtypes
+    and choke on a stray value.
+    """
     ext = path.suffix.lower()
     if ext == ".parquet":
         return pl.read_parquet(path)
     elif ext == ".csv":
-        return pl.read_csv(path)
+        text_cols = ("binary_flag", "position", "reason", "raw_evaluation")
+        header = pl.read_csv(path, n_rows=0).columns
+        overrides = {c: pl.Utf8 for c in text_cols if c in header}
+        return pl.read_csv(path, schema_overrides=overrides, infer_schema_length=10000)
     raise ValueError(f"Unsupported evaluations format: {ext} (use .csv or .parquet)")
 
 
@@ -57,7 +66,15 @@ def select_cases(df: pl.DataFrame, positions: list[str] = None, min_len: int = 3
     Keeps rows with binary_flag=1 and text >= min_len chars. If `positions` is
     given, keeps only positives whose position is in that allow-list.
     """
-    out = df.filter(pl.col("binary_flag").cast(pl.Utf8, strict=False).str.strip_chars() == "1")
+    # Normalize binary_flag: strip markdown fences/backticks and whitespace that
+    # can leak in from malformed analyst output (e.g. "```\n1" -> "1").
+    flag = (
+        pl.col("binary_flag")
+        .cast(pl.Utf8, strict=False)
+        .str.replace_all("`", "")
+        .str.strip_chars()
+    )
+    out = df.filter(flag == "1")
     out = out.filter(pl.col("text").is_not_null() & (pl.col("text").str.len_chars() >= min_len))
     if positions:
         out = out.filter(pl.col("position").is_in(list(positions)))
@@ -67,7 +84,8 @@ def select_cases(df: pl.DataFrame, positions: list[str] = None, min_len: int = 3
 def build_label(row: dict) -> str:
     """The label the evaluator independently verifies — no analyst reason."""
     position = row.get("position") or ""
-    return f"binary_flag={row['binary_flag']}; position={position}"
+    flag = str(row["binary_flag"]).replace("`", "").strip()
+    return f"binary_flag={flag}; position={position}"
 
 
 def build_batch_items(batch_ids: list[int], row_lookup: dict) -> str:
