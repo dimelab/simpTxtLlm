@@ -19,6 +19,7 @@ truncate a batch otherwise.
 import hashlib
 import json
 import random
+import re
 from pathlib import Path
 
 import ollama
@@ -151,11 +152,14 @@ def estimate_batch_size(cases: pl.DataFrame, context_window: int) -> int:
     if n == 0:
         return 10
     avg_per_case = total / n
-    # Reserve for evaluator system prompt + analyst prompts in the template + output
+    # Reserve for evaluator system prompt + analyst prompts in the template + output.
+    # Each output object is verbose (evidence = 2-3 sentences + two feature
+    # fields), so budget generously and cap the batch — oversized batches make
+    # the model run past num_ctx and truncate the JSON array.
     available = context_window - 2500
-    per_case_total = avg_per_case + 150
+    per_case_total = avg_per_case + 300
     size = int(available / per_case_total) if per_case_total > 0 else 10
-    return max(10, min(50, size))
+    return max(8, min(25, size))
 
 
 def create_batches(
@@ -210,16 +214,63 @@ def create_batches(
     return batches
 
 
+def _salvage_objects(s: str) -> list[dict]:
+    """Decode as many complete JSON objects as possible from a (maybe truncated)
+    array body, stopping at the first incomplete one."""
+    decoder = json.JSONDecoder()
+    objs = []
+    i, n = 0, len(s)
+    while i < n:
+        while i < n and s[i] in " \t\r\n,":
+            i += 1
+        if i >= n or s[i] == "]":
+            break
+        try:
+            obj, end = decoder.raw_decode(s, i)
+        except json.JSONDecodeError:
+            break  # reached the truncation point
+        if isinstance(obj, dict):
+            objs.append(obj)
+        i = end
+    return objs
+
+
 def parse_evaluator_response(content: str) -> list[dict]:
-    """Parse a JSON array from the model response, with substring fallback."""
+    """Parse a JSON array from the model response.
+
+    Tolerates markdown code fences (```json ... ```) and truncated output: a
+    response cut off mid-array still yields every complete object, so the rest
+    of the batch is retried on a later run rather than the whole batch lost.
+    """
+    text = content.strip()
+    # Strip a leading ```json / ``` fence and any trailing ```
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z0-9]*\s*", "", text)
+        text = re.sub(r"\s*```\s*$", "", text)
+
     try:
-        return json.loads(content)
+        result = json.loads(text)
+        return result if isinstance(result, list) else [result]
     except json.JSONDecodeError:
-        start = content.find("[")
-        end = content.rfind("]") + 1
-        if start >= 0 and end > start:
-            return json.loads(content[start:end])
+        pass
+
+    start = text.find("[")
+    if start < 0:
         raise ValueError(f"Could not parse evaluator response as JSON: {content[:200]}...")
+
+    # Whole array (handles trailing prose after the closing ])
+    end = text.rfind("]")
+    if end > start:
+        try:
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    # Truncated array: salvage the complete objects
+    objs = _salvage_objects(text[start + 1 :])
+    if objs:
+        return objs
+    raise ValueError(f"Could not parse evaluator response as JSON: {content[:200]}...")
 
 
 def _normalize_tier(value) -> str:
@@ -391,6 +442,9 @@ def intermediary_evaluate(
     # Batching
     if batch_size is None:
         batch_size = estimate_batch_size(to_eval, context_window)
+        # Salt rides on top of the positive batch; shrink so the total still fits
+        if negative_fraction > 0:
+            batch_size = max(8, int(batch_size / (1 + negative_fraction)))
     if overlap >= batch_size:
         overlap = max(0, batch_size - 1)
     print(f"Batch size: {batch_size}, overlap: {overlap}, context window: {context_window}")
