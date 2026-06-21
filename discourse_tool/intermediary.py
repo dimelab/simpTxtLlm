@@ -53,10 +53,14 @@ def load_evaluations(path: Path) -> pl.DataFrame:
     if ext == ".parquet":
         return pl.read_parquet(path)
     elif ext == ".csv":
-        text_cols = ("binary_flag", "position", "reason", "raw_evaluation")
-        header = pl.read_csv(path, n_rows=0).columns
-        overrides = {c: pl.Utf8 for c in text_cols if c in header}
-        return pl.read_csv(path, schema_overrides=overrides, infer_schema_length=10000)
+        # Read EVERY column as text (infer_schema_length=0 -> all String) so
+        # malformed analyst output — e.g. a markdown fence captured into
+        # binary_flag like "```\n0" — can never break numeric schema inference.
+        df = pl.read_csv(path, infer_schema_length=0)
+        # paragraph_index is used numerically downstream (joins/ordering).
+        if "paragraph_index" in df.columns:
+            df = df.with_columns(pl.col("paragraph_index").cast(pl.Int64, strict=False))
+        return df
     raise ValueError(f"Unsupported evaluations format: {ext} (use .csv or .parquet)")
 
 
